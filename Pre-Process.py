@@ -1,6 +1,5 @@
 import sqlite3
 import pandas as pd
-import sklearn
 import numpy as np
 import datetime
 
@@ -20,7 +19,78 @@ def get_closest_date_to_match(match_date, other_dates):
         return other_dates[diff.index(closest_date)]
 
 
+def get_last_x_home_matches(matches, date, team, x):
+    # return the last X home games that the team have played before the date giving
+    team_matches = matches[(matches['home_team_api_id'] == team)]
+    last_matches = team_matches[team_matches.date < date].sort_values(by='date', ascending=False).iloc[0:x, :]
+    return last_matches
+
+
+def get_last_x_away_matches(matches, date, team, x):
+    # return the last X away games that the team have played before the date giving
+    team_matches = matches[(matches['away_team_api_id'] == team)]
+    last_matches = team_matches[team_matches.date < date].sort_values(by='date', ascending=False).iloc[0:x, :]
+    return last_matches
+
+
+def get_last_x_matches_score(matches, team_id):
+    '''
+    :param matches:
+    :return: score team earned in the last matches that giving the the matches DF
+    '''
+    score_in_x_matches = 0
+    for index, row in matches.iterrows():
+        home_team = row['home_team_api_id']
+        away_team = row['away_team_api_id']
+        home_team_goals = row['home_team_goal']
+        away_team_goals = row['away_team_goal']
+        # final_result = row['final_result']
+        if home_team_goals == away_team_goals:
+            score_in_x_matches += 1
+        elif (home_team_goals > away_team_goals and home_team == team_id) or (
+                home_team_goals < away_team_goals and away_team == team_id):
+            score_in_x_matches += 3
+    return score_in_x_matches
+
+
+def add_last_x_matches_score(cleared_matches, x):
+    """
+    This method will add 2 new columns to the cleared_matches DF with the amount of point
+    each team earned in their last home (for home team) or away (for away team) games
+    :param cleared_matches: - DF with all the matches
+    :param x: - The amount of games the user wants to get
+    :return: -
+    """
+    last_x_games_score_home = []
+    last_x_games_score_away = []
+
+    for index, match in cleared_matches.iterrows():
+        home_team = match['home_team_api_id']
+        away_team = match['away_team_api_id']
+        match_date = match['date']
+
+        home_team_last_x_games = get_last_x_home_matches(cleared_matches, match_date, home_team, x)
+        away_team_last_x_games = get_last_x_away_matches(cleared_matches, match_date, away_team, x)
+
+        home_team_last_x_score = get_last_x_matches_score(home_team_last_x_games, home_team)
+        away_team_last_x_score = get_last_x_matches_score(away_team_last_x_games, away_team)
+
+        last_x_games_score_home.append(home_team_last_x_score)
+        last_x_games_score_away.append(away_team_last_x_score)
+
+    home_label = 'h_only_' + str(x) + '_games_pts'
+    away_label = 'a_only_' + str(x) + '_games_pts'
+    cleared_matches[home_label] = last_x_games_score_home
+    cleared_matches[away_label] = last_x_games_score_away
+
+
 def get_last_5_matches(matches, date, team):
+    """
+    :param matches: DF with all matches
+    :param date: Giving date by user - asking for games before this date
+    :param team: team_id
+    :return: last 5 matches for the team (no matter if home or away)
+    """
     team_matches = matches[(matches['home_team_api_id'] == team) | (matches['away_team_api_id'] == team)]
     last_matches = team_matches[team_matches.date < date].sort_values(by='date', ascending=False).iloc[0:5, :]
     return last_matches
@@ -28,7 +98,7 @@ def get_last_5_matches(matches, date, team):
 
 def get_last_5_matches_score(matches, team_id):
     '''
-    :param matches:
+    :param matches: DF with last 5 matches the team played
     :return: score team earned in the last 5 matches
     '''
     score_in_5_matches = 0
@@ -47,6 +117,12 @@ def get_last_5_matches_score(matches, team_id):
 
 
 def add_last_5_matches_score(cleared_matches):
+    """
+    This method will add 2 new columns to the cleared_matches DF with the amount of point
+    each team earned in their last 5 home or away games
+    :param cleared_matches: - DF with all the matches
+    :return: -
+    """
     last_5_games_score_home = []
     last_5_games_score_away = []
 
@@ -66,54 +142,6 @@ def add_last_5_matches_score(cleared_matches):
 
     cleared_matches['h_5_games_pts'] = last_5_games_score_home
     cleared_matches['a_5_games_pts'] = last_5_games_score_away
-
-
-def get_last_3_matches(matches, date, team):
-    team_matches = matches[(matches['home_team_api_id'] == team) | (matches['away_team_api_id'] == team)]
-    last_matches = team_matches[team_matches.date < date].sort_values(by='date', ascending=False).iloc[0:3, :]
-    return last_matches
-
-
-def get_last_3_matches_score(matches, team_id):
-    '''
-    :param matches:
-    :return: score team earned in the last 5 matches
-    '''
-    score_in_3_matches = 0
-    for index, row in matches.iterrows():
-        home_team = row['home_team_api_id']
-        away_team = row['away_team_api_id']
-        home_team_goals = row['home_team_goal']
-        away_team_goals = row['away_team_goal']
-        # final_result = row['final_result']
-        if home_team_goals == away_team_goals:
-            score_in_3_matches += 1
-        elif (home_team_goals > away_team_goals and home_team == team_id) or (
-                home_team_goals < away_team_goals and away_team == team_id):
-            score_in_3_matches += 3
-    return score_in_3_matches
-
-
-def add_last_3_matches_score(cleared_matches):
-    last_3_games_score_home = []
-    last_3_games_score_away = []
-
-    for index, match in cleared_matches.iterrows():
-        home_team = match['home_team_api_id']
-        away_team = match['away_team_api_id']
-        match_date = match['date']
-
-        home_team_last_3_games = get_last_3_matches(cleared_matches, match_date, home_team)
-        away_team_last_3_games = get_last_3_matches(cleared_matches, match_date, away_team)
-
-        home_team_last_3_score = get_last_3_matches_score(home_team_last_3_games, home_team)
-        away_team_last_3_score = get_last_3_matches_score(away_team_last_3_games, away_team)
-
-        last_3_games_score_home.append(home_team_last_3_score)
-        last_3_games_score_away.append(away_team_last_3_score)
-
-    cleared_matches['h_3_games_pts'] = last_3_games_score_home
-    cleared_matches['a_3_games_pts'] = last_3_games_score_away
 
 
 def get_teams_rating(row):
@@ -222,29 +250,13 @@ def bet_avg_calc_A_D():
     bet_sitesA_table = cleared_matches[bet_sitesA]
     bet_sitesD_table = cleared_matches[bet_sitesD]
 
-    # mixed_bets = bet_sitesA_table.add(bet_sitesD_table,fill_value=0)
     for col in bet_sitesA:
         colPrefix = col[:-1]
-        avgOfCols = ((bet_sitesA_table[colPrefix+'A']+bet_sitesD_table[colPrefix+'D'])/4).values
-        awayDrawAvgTable[colPrefix]=avgOfCols
+        avgOfCols = ((bet_sitesA_table[colPrefix + 'A'] + bet_sitesD_table[colPrefix + 'D']) / 4).values
+        awayDrawAvgTable[colPrefix] = avgOfCols
     tmp = np.mean(awayDrawAvgTable, axis=1)
     print(len(tmp))
     cleared_matches['AVG_bet_A_D'] = tmp
-
-
-# def bet_avg_calc_D():
-#     """
-#     :param row: row from dataframe
-#     :return:  new row in dataframe with new column
-#     1. home_top_player
-#     2. away_top_player
-#     3. home_team_mean_rating
-#     4. away_team_mean_rating
-#     """
-#     bet_sitesD = ["B365D", "BWD", "IWD", "LBD", "WHD", "VCD"]
-#     bet_sitesD_table = cleared_matches[bet_sitesD]
-#
-#     cleared_matches['AVG_bet_D'] = np.mean(bet_sitesD_table, axis=1)
 
 
 def get_final_results(cleared_matches):
@@ -261,6 +273,7 @@ def get_final_results(cleared_matches):
             games_results[index] = 0
         index += 1
     return games_results
+
 
 def get_final_results_with_draw(cleared_matches):
     """EXTRACT FINAL GAMES RESULTS """
@@ -281,6 +294,13 @@ def get_final_results_with_draw(cleared_matches):
 
 
 def get_team_attributes(cleared_matches, team_attributes):
+    """
+    This method will add the buildUpPlaySpeed, defencePressure, defenceAggression, chanceCreationPassing and
+    chanceCreationShooting for the home and away team to the cleared_matches DF
+    :param cleared_matches: DF with all matches
+    :param team_attributes: DF with all team_attributes
+    :return:
+    """
     buildUpPlaySpeedHome = []
     defencePressureHome = []
     defenceAggressionHome = []
@@ -396,34 +416,34 @@ print("Starting to process...: \n", cleared_matches)
 """ Adding final_resul to the table """
 games_results = get_final_results(cleared_matches)
 cleared_matches['final_result'] = games_results
-get_final_results_with_draw(cleared_matches) #add results with draw option
+get_final_results_with_draw(cleared_matches)  # add results with draw option
 print("Added games results ...: \n\n", cleared_matches)
 
 
-""" ADDING buildUpPlaySpeed defencePressure defenceAggression chanceCreationPassing chanceCreationShooting TO HOME AND AWAY SIDE """
-get_team_attributes(cleared_matches, team_df)
-cleared_matches = cleared_matches.replace(to_replace='', value=np.nan).dropna()
-print("Added Team Attributes ...: \n\n", cleared_matches)
-
+#
+# """ ADDING buildUpPlaySpeed defencePressure defenceAggression chanceCreationPassing chanceCreationShooting TO HOME AND AWAY SIDE """
+# # get_team_attributes(cleared_matches, team_df)
+# # cleared_matches = cleared_matches.replace(to_replace='', value=np.nan).dropna()
+# # print("Added Team Attributes ...: \n\n", cleared_matches)
+#
+#
 
 """ ADDING THE AMOUNT OF POINTS EACH TEAM GOT IN THE PREVIOUSLY 5 GAMES TO THE CURRENT GAME"""
 add_last_5_matches_score(cleared_matches)
 print("Added 5 games points results ...: \n\n", cleared_matches)
 
-
-""" ADDING THE AMOUNT OF POINTS EACH TEAM GOT IN THE PREVIOUSLY 3 GAMES TO THE CURRENT GAME"""
-add_last_3_matches_score(cleared_matches)
-print("Added 3 games points results ...: \n\n", cleared_matches)
+x_games = 10
+add_last_x_matches_score(cleared_matches, x_games)
+print("Added" + str(x_games) + "games points results ...: \n\n", cleared_matches)
 
 """ ADDING THE BET'S AVERAGE ODDS TO HOME, AWAY AND DRAW RESULTS """
 bet_avg_calc_H()
 bet_avg_calc_A_D()
 cleared_matches = cleared_matches.dropna(how='any')
-# bet_avg_calc_D()
 print("Added bets ...: \n\n", cleared_matches)
 
 """ FIND OUT HOW MANY TOP PLAYERS PLAYED FOR THE TEAM """
-""" TOP PLAYER IS A PLAYER WITH AVG OVERALL HIGHER THEN 84 """
+""" TOP PLAYER IS A PLAYER WITH AVG OVERALL HIGHER THEN 80 """
 """ AVG OVERALL = (overall_rating + potential) / 2 """
 """ BY THE END OF THIS SECTION THE TABLE WILL HAVE 4 NEW COLUMNS """
 """ TOP_PLAYERS_HOME_TEAM AND TOP_PLAYERS_AWAY_TEAM """
@@ -437,13 +457,11 @@ print("Added AVG OVERALL and team Top players ...: \n\n", cleared_matches)
 
 """ Split to test and train DFs """
 print("Splitting to train and test... \n")
+
 needed_features = ['home_team_api_id', 'away_team_api_id', 'home_team_mean_rating', 'away_team_mean_rating',
-                   'home_top_players',
-                   'away_top_players', 'AVG_bet_H', 'AVG_bet_A_D', 'h_5_games_pts', 'a_5_games_pts',
-                   'h_3_games_pts', 'a_3_games_pts',
-                   'buildUpPlaySpeedHome', 'defencePressureHome', 'defenceAggressionHome', 'chanceCreationPassingHome',
-                   'chanceCreationShootingHome', 'buildUpPlaySpeedAway', 'defencePressureAway', 'defenceAggressionAway',
-                   'chanceCreationPassingAway', 'chanceCreationShootingAway', 'final_result','final_result_with_draw']
+                   'home_top_players','away_top_players','AVG_bet_H','AVG_bet_A_D','h_5_games_pts',
+                   'a_5_games_pts','h_only_10_games_pts','a_only_10_games_pts'
+                   'final_result', 'final_result_with_draw']
 
 train_df = pd.DataFrame(columns=needed_features)
 test_df = pd.DataFrame(columns=needed_features)

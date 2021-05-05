@@ -22,5 +22,4 @@ x_test = sc.fit_transform(x_test)
 
 svm_model.fit(x_train,y_train)
 y_prediction = svm_model.predict(x_test)
-print("GHOSTTTTTTTTTTTTTTTTTTTTTTTTTTT\n\n\n")
 print("Accuracy: \n", metrics.accuracy_score(y_test,y_prediction))
